@@ -3,17 +3,19 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sstream>
 
-int main(int argc , char *argv[])
+int main(int argc, char *argv[])
 {
     int server_socket, client_socket;
-    int addr_length, read_size, buffer_size = 20;
-    
-    struct sockaddr_in server, client;
- 
-    char client_message[buffer_size];
+    int length, read_size, port = 8888;
+    int message_length = 1024;
 
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in server, client;
+    
+    char client_message[message_length + 1];
+     
+    server_socket = socket(AF_INET , SOCK_STREAM , 0);
 
     if (server_socket == -1)
     {
@@ -24,42 +26,58 @@ int main(int argc , char *argv[])
 
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons(2222);
 
-    if (bind(server_socket, (struct sockaddr *)&server , sizeof(server)) < 0)
+    if (argc > 1)
+    {
+      std::stringstream stream(argv[1]);
+ 
+      stream >> port;
+    }
+
+    server.sin_port = htons(port);
+     
+    if( bind(server_socket, (struct sockaddr *) &server, sizeof(server)) < 0)
     {
         perror("bind failed. Error");
- 
+
         return 1;
     }
 
     puts("bind done");
-
+     
     listen(server_socket , 3);
-
+     
     puts("Waiting for incoming connections...");
- 
-    addr_length = sizeof(struct sockaddr_in);
 
+    length = sizeof(struct sockaddr_in);
+    
     while (1)
     {
-      client_socket = accept(server_socket, (struct sockaddr *) &client, (socklen_t*) &addr_length);
-
+      client_socket = accept(server_socket, (struct sockaddr *) &client, (socklen_t*) &length);
+      
       if (client_socket < 0)
       {
           perror("accept failed");
-    
+      
           return 1;
       }
 
       puts("Connection accepted");
-
-      while ((read_size = recv(client_socket , client_message , buffer_size , 0)) > 0)
+       
+      while ((read_size = recv(client_socket , client_message , message_length , 0)) > 0)
       {
-          printf("%s\n", client_message);
-      }
+          client_message[read_size] = '\0';
 
-      if (read_size == 0)
+          printf("Received: %s", client_message);
+
+          char reply[] = "I'm from server\n";
+
+          write(client_socket , reply , strlen(reply));
+
+          memset(client_message, 0, read_size);
+      }
+       
+      if(read_size == 0)
       {
           puts("Client disconnected");
 
